@@ -1,13 +1,12 @@
 {
     "name": "ontology-vocab-app",
     "private": true,
-    "workspaces": [
-        "apps/*",
-        "packages/*"
-    ],
     "scripts": {
-        "dev": "concurrently \"npm run dev -w @vocab/web\" \"npm run dev -w api\"",
-        "build": "npm run build --workspaces --if-present"
+        "dev": "concurrently \"npm run dev --prefix apps/web\" \"npm run dev --prefix apps/api\"",
+        "dev:api": "npm run dev --prefix apps/api",
+        "dev:web": "npm run dev --prefix apps/web",
+        "build": "npm run build --prefix apps/web",
+        "install:all": "npm install --prefix apps/api && npm install --prefix apps/web && npm install --prefix packages/shared"
     },
     "devDependencies": {
         "concurrently": "^9.2.1"
