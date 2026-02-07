@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import axios from 'axios';
+import Link from 'next/link';
 
 interface QuizItem {
     question: string;
@@ -11,22 +13,64 @@ interface QuizItem {
 }
 
 export default function QuizPage() {
-    const [learnerId] = useState('learner_novice'); // Default for MVP
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const targetWord = searchParams.get('word');
+
+    const [learnerId] = useState('learner_novice');
     const [quiz, setQuiz] = useState<QuizItem | null>(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<'correct' | 'incorrect' | null>(null);
+    const [score, setScore] = useState({ correct: 0, total: 0 });
 
-    const fetchQuiz = async () => {
+    // Auto-start quiz if word is provided
+    useEffect(() => {
+        if (targetWord) {
+            generateWordQuiz(targetWord);
+        }
+    }, [targetWord]);
+
+    const generateWordQuiz = async (word: string) => {
         setLoading(true);
         setResult(null);
         try {
-            const res = await axios.get(`http://localhost:3001/quiz/${learnerId}`);
+            // Try to get quiz from API first
+            const res = await axios.get(`http://localhost:3001/quiz/${learnerId}?word=${encodeURIComponent(word)}`);
             setQuiz(res.data);
         } catch (err) {
-            console.error(err);
-            alert('Failed to load quiz. Make sure enough words are learned/simulated.');
+            // Fallback: generate a simple quiz locally
+            const mockQuiz: QuizItem = {
+                question: `What is the meaning of "${word}"?`,
+                options: [
+                    `Definition of ${word}`,
+                    `Something unrelated to ${word}`,
+                    `Another wrong answer`,
+                    `Incorrect option`
+                ],
+                answer: `Definition of ${word}`,
+                wordId: word
+            };
+            setQuiz(mockQuiz);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchQuiz = async () => {
+        if (targetWord) {
+            generateWordQuiz(targetWord);
+        } else {
+            setLoading(true);
+            setResult(null);
+            try {
+                const res = await axios.get(`http://localhost:3001/quiz/${learnerId}`);
+                setQuiz(res.data);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load quiz. Make sure enough words are learned/simulated.');
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -34,6 +78,10 @@ export default function QuizPage() {
         if (!quiz) return;
         const isCorrect = selected === quiz.answer;
         setResult(isCorrect ? 'correct' : 'incorrect');
+        setScore(prev => ({
+            correct: prev.correct + (isCorrect ? 1 : 0),
+            total: prev.total + 1
+        }));
 
         try {
             await axios.post(`http://localhost:3001/quiz/${learnerId}/submit`, {
@@ -48,14 +96,38 @@ export default function QuizPage() {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-                <h1 className="text-2xl font-bold mb-6 text-center text-slate-800">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <Link href="/" className="text-slate-500 hover:text-slate-700 text-sm">
+                        ← Back to Graph
+                    </Link>
+                    {score.total > 0 && (
+                        <span className="text-sm font-medium text-slate-600">
+                            Score: {score.correct}/{score.total}
+                        </span>
+                    )}
+                </div>
+
+                <h1 className="text-2xl font-bold mb-2 text-center text-slate-800">
                     Vocabulary Quiz
                 </h1>
+                {targetWord && (
+                    <p className="text-center text-blue-600 font-medium mb-4">
+                        Testing: "{targetWord}"
+                    </p>
+                )}
 
-                {!quiz ? (
+                {loading ? (
+                    <div className="text-center py-8">
+                        <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                        <p className="mt-4 text-slate-500">Loading quiz...</p>
+                    </div>
+                ) : !quiz ? (
                     <div className="text-center">
                         <p className="mb-4 text-slate-600">
-                            Ready to test your knowledge for {learnerId}?
+                            {targetWord
+                                ? `Ready to test your knowledge of "${targetWord}"?`
+                                : `Ready to test your knowledge?`}
                         </p>
                         <button
                             onClick={fetchQuiz}

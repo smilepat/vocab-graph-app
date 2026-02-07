@@ -1,37 +1,55 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import KnowledgeGraph from "./components/KnowledgeGraph";
 import { Search } from "lucide-react";
 import * as api from "@/lib/api";
 import axios from "axios";
 
 export default function Home() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [selectedNode, setSelectedNode] = useState<any>(null);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleStartQuiz = (word: string) => {
+    router.push(`/quiz?word=${encodeURIComponent(word)}`);
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query) return;
+    if (!query.trim()) return;
+
+    setLoading(true);
+    setError(null);
 
     try {
+      const res = await axios.get(`http://localhost:3001/search/${encodeURIComponent(query.trim())}`);
+      setGraphData(res.data);
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to search. Make sure API server is running.');
+      // Fallback to mock data
       const mockData = {
         nodes: [
           { id: query, group: "Word", val: 20 },
-          { id: "Definition 1", group: "Sense", val: 10 },
-          { id: "Example 1", group: "Example", val: 5 },
-          { id: "Synonym A", group: "Word", val: 15 },
+          { id: `Definition of ${query}`, group: "Sense", val: 12 },
+          { id: `Example using ${query}`, group: "Example", val: 8 },
+          { id: `${query}_related`, group: "Word", val: 15 },
         ],
         links: [
-          { source: query, target: "Definition 1", type: "HAS_SENSE" },
-          { source: "Definition 1", target: "Example 1", type: "HAS_EXAMPLE" },
-          { source: query, target: "Synonym A", type: "RELATED_TO" },
+          { source: query, target: `Definition of ${query}`, type: "HAS_SENSE" },
+          { source: `Definition of ${query}`, target: `Example using ${query}`, type: "HAS_EXAMPLE" },
+          { source: query, target: `${query}_related`, type: "RELATED_TO" },
         ],
       };
       setGraphData(mockData as any);
-    } catch (err) {
-      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,11 +78,17 @@ export default function Home() {
             </div>
             <button
               type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              disabled={loading}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[100px]"
             >
-              Explore
+              {loading ? 'Searching...' : 'Explore'}
             </button>
           </form>
+          {error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
           <KnowledgeGraph
             data={graphData}
@@ -92,7 +116,10 @@ export default function Home() {
                 </div>
                 {selectedNode.group === 'Word' && (
                   <div className="pt-4">
-                    <button className="w-full bg-green-50 text-green-700 py-2 rounded border border-green-200 hover:bg-green-100">
+                    <button
+                      onClick={() => handleStartQuiz(selectedNode.id)}
+                      className="w-full bg-green-50 text-green-700 py-2 rounded border border-green-200 hover:bg-green-100 transition"
+                    >
                       Start Quiz for "{selectedNode.id}"
                     </button>
                   </div>
@@ -107,7 +134,120 @@ export default function Home() {
           <AITutorPanel />
         </div>
       </div>
+
+      {/* How It Works Section */}
+      <HowItWorksSection />
     </div>
+  );
+}
+
+function HowItWorksSection() {
+  return (
+    <section className="mt-12 border-t border-slate-200 pt-8">
+      <h2 className="text-2xl font-bold text-slate-800 mb-6">How It Works</h2>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Usage Guide */}
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-blue-600 mb-4">Usage Guide</h3>
+          <ol className="space-y-3 text-slate-700">
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">1</span>
+              <div>
+                <strong>Setup</strong>: Start Neo4j database and API server (port 3001)
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">2</span>
+              <div>
+                <strong>Import Data</strong>: POST to <code className="bg-slate-100 px-1 rounded">/import-csv</code> to load vocabulary
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">3</span>
+              <div>
+                <strong>Explore</strong>: Search words to visualize their relationships in the Knowledge Graph
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">4</span>
+              <div>
+                <strong>Learn</strong>: Click nodes to see details, take quizzes at <code className="bg-slate-100 px-1 rounded">/quiz</code>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">5</span>
+              <div>
+                <strong>AI Tutor</strong>: Get personalized study recommendations based on your weak spots
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        {/* Architecture */}
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-purple-600 mb-4">Architecture</h3>
+          <div className="space-y-4 text-slate-700">
+            <div>
+              <h4 className="font-medium text-slate-800">Tech Stack</h4>
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>Frontend: Next.js 16 + React 19 + Tailwind CSS</li>
+                <li>Backend: Express.js + TypeScript (port 3001)</li>
+                <li>Database: Neo4j Graph Database (port 7687)</li>
+                <li>AI: Azure OpenAI GPT-4o</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-slate-800">Knowledge Graph Ontology</h4>
+              <div className="mt-2 text-sm bg-slate-50 p-3 rounded font-mono">
+                <div className="text-blue-600">Nodes: Word, Sense, Example, Topic, Level, Learner</div>
+                <div className="text-purple-600 mt-1">Edges: HAS_SENSE, HAS_EXAMPLE, RELATED_TO, KNOWS, LEARNING</div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-slate-800">How Learning Works</h4>
+              <p className="mt-1 text-sm">
+                Your quiz attempts create <code className="bg-slate-100 px-1 rounded">ATTEMPTED</code> relationships.
+                The AI analyzes this graph to find words you struggle with and generates personalized mnemonics and examples.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* API Quick Reference */}
+      <div className="mt-6 bg-slate-800 text-slate-100 rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-3">API Quick Reference</h3>
+        <div className="grid md:grid-cols-3 gap-4 text-sm font-mono">
+          <div>
+            <span className="text-green-400">GET</span> /test-db
+            <p className="text-slate-400 font-sans text-xs mt-1">Test Neo4j connection</p>
+          </div>
+          <div>
+            <span className="text-yellow-400">POST</span> /import-csv
+            <p className="text-slate-400 font-sans text-xs mt-1">Import vocabulary data</p>
+          </div>
+          <div>
+            <span className="text-yellow-400">POST</span> /learners/init
+            <p className="text-slate-400 font-sans text-xs mt-1">Initialize learner profiles</p>
+          </div>
+          <div>
+            <span className="text-green-400">GET</span> /quiz/:learnerId
+            <p className="text-slate-400 font-sans text-xs mt-1">Generate quiz question</p>
+          </div>
+          <div>
+            <span className="text-yellow-400">POST</span> /quiz/:learnerId/submit
+            <p className="text-slate-400 font-sans text-xs mt-1">Submit quiz answer</p>
+          </div>
+          <div>
+            <span className="text-green-400">GET</span> /agent/recommend/:learnerId
+            <p className="text-slate-400 font-sans text-xs mt-1">Get AI recommendation</p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
