@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import Link from 'next/link';
@@ -12,7 +12,7 @@ interface QuizItem {
     wordId: string;
 }
 
-export default function QuizPage() {
+function QuizContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const targetWord = searchParams.get('word');
@@ -35,7 +35,7 @@ export default function QuizPage() {
         setResult(null);
         try {
             // Try to get quiz from API first
-            const res = await axios.get(`http://localhost:3001/quiz/${learnerId}?word=${encodeURIComponent(word)}`);
+            const res = await axios.get(`/api/quiz?word=${encodeURIComponent(word)}`);
             setQuiz(res.data);
         } catch (err) {
             // Fallback: generate a simple quiz locally
@@ -63,11 +63,23 @@ export default function QuizPage() {
             setLoading(true);
             setResult(null);
             try {
-                const res = await axios.get(`http://localhost:3001/quiz/${learnerId}`);
+                const res = await axios.get(`/api/quiz`);
                 setQuiz(res.data);
             } catch (err) {
                 console.error(err);
-                alert('Failed to load quiz. Make sure enough words are learned/simulated.');
+                // Fallback mock quiz
+                const mockQuiz: QuizItem = {
+                    question: 'What is the meaning of "example"?',
+                    options: [
+                        'A representative form or pattern',
+                        'Something unrelated',
+                        'Another wrong answer',
+                        'Incorrect option'
+                    ],
+                    answer: 'A representative form or pattern',
+                    wordId: 'example'
+                };
+                setQuiz(mockQuiz);
             } finally {
                 setLoading(false);
             }
@@ -84,7 +96,7 @@ export default function QuizPage() {
         }));
 
         try {
-            await axios.post(`http://localhost:3001/quiz/${learnerId}/submit`, {
+            await axios.post(`/api/quiz/submit`, {
                 wordId: quiz.wordId,
                 isCorrect
             });
@@ -157,7 +169,7 @@ export default function QuizPage() {
                                     className={`w-full text-left p-4 rounded-lg border transition
                     ${result && option === quiz.answer
                                             ? 'bg-green-100 border-green-500 text-green-900'
-                                            : result && option !== quiz.answer && result === 'incorrect' // Highlight selected wrong answer logic omitted for simplicity, just highlight correct
+                                            : result && option !== quiz.answer && result === 'incorrect'
                                                 ? 'opacity-50'
                                                 : 'border-slate-200 hover:bg-slate-50 hover:border-blue-300'
                                         }
@@ -185,5 +197,20 @@ export default function QuizPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function QuizPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                    <p className="mt-4 text-slate-500">Loading...</p>
+                </div>
+            </div>
+        }>
+            <QuizContent />
+        </Suspense>
     );
 }
