@@ -28,7 +28,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const res = await axios.get(`http://localhost:3001/search/${encodeURIComponent(query.trim())}`);
+      const res = await axios.get(`/api/search/${encodeURIComponent(query.trim())}`);
       setGraphData(res.data);
     } catch (err: any) {
       console.error(err);
